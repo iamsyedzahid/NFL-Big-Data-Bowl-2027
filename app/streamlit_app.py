@@ -16,7 +16,6 @@ def load_model():
         return joblib.load(MODEL_PATH)
     return None
 
-# Directly load the model object (LGBMClassifier)
 model = load_model()
 
 if model is None:
@@ -39,24 +38,32 @@ else:
         ngs_prod = st.slider("NGS Production Score", 50.0, 99.0, 72.0)
         combine_max_s = st.slider("Combine Max Speed (yd/s)", 5.0, 12.0, 9.5)
 
+    # Build input DataFrame containing all features the model expected during training
     input_data = pd.DataFrame([{
-        'combine_height': height,
-        'combine_weight': weight,
+        'combine_height': float(height),
+        'combine_weight': float(weight),
         'hand_size': 9.5,
         'arm_length': 32.0,
-        'ten_yd_split': ten_yd,
-        'forty': forty,
-        'vertical': vertical,
+        'ten_yd_split': float(ten_yd),
+        'forty': float(forty),
+        'vertical': float(vertical),
         'broad_jump': 120.0,
         'three_cone': 7.10,
         'short_shuttle': 4.25,
-        'bench_reps': bench,
-        'ngs_athleticism_score': ngs_ath,
-        'ngs_college_production_score': ngs_prod,
-        'combine_max_speed': combine_max_s,
+        'bench_reps': float(bench),
+        'ngs_athleticism_score': float(ngs_ath),
+        'ngs_college_production_score': float(ngs_prod),
+        'combine_max_speed': float(combine_max_s),
         'combine_max_accel': 4.5,
-        'avg_jerk_ratio': 0.85
+        'avg_jerk_ratio': 0.85,
+        'game_max_speed': float(combine_max_s * 1.05),
+        'game_avg_speed': float(combine_max_s * 0.60),
+        'game_max_accel': 4.8
     }])
+
+    # Reorder columns automatically to match model's expected feature names
+    if hasattr(model, "feature_name_"):
+        input_data = input_data.reindex(columns=model.feature_name_, fill_value=0.0)
 
     if st.button("Evaluate Prospect"):
         prob = model.predict_proba(input_data)[0][1]
