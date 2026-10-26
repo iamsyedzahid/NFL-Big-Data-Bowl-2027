@@ -6,6 +6,7 @@ import streamlit as st
 st.set_page_config(page_title="NFL Draft Prospect Evaluator", layout="wide")
 
 st.title("🏈 NFL Combine-to-Pro Performance Evaluator")
+st.title("BY Syed Zahid Hussain - 24K0015- Lab 09 - Machine Learning")
 st.write("Predicting regular-season success probability using Combine kinematics & Next Gen Stats.")
 
 MODEL_PATH = "artifacts/nfl_prospect_model.joblib"
@@ -38,7 +39,9 @@ else:
         ngs_prod = st.slider("NGS Production Score", 50.0, 99.0, 72.0)
         combine_max_s = st.slider("Combine Max Speed (yd/s)", 5.0, 12.0, 9.5)
 
-    # Build input DataFrame containing all features the model expected during training
+    # Dynamic kinematic calculations scaled from slider inputs
+    dynamic_accel = max(2.0, (12.0 - forty) * 1.5)
+    
     input_data = pd.DataFrame([{
         'combine_height': float(height),
         'combine_weight': float(weight),
@@ -47,28 +50,30 @@ else:
         'ten_yd_split': float(ten_yd),
         'forty': float(forty),
         'vertical': float(vertical),
-        'broad_jump': 120.0,
-        'three_cone': 7.10,
-        'short_shuttle': 4.25,
+        'broad_jump': float(vertical * 3.2),
+        'three_cone': float(7.10),
+        'short_shuttle': float(4.25),
         'bench_reps': float(bench),
         'ngs_athleticism_score': float(ngs_ath),
         'ngs_college_production_score': float(ngs_prod),
         'combine_max_speed': float(combine_max_s),
-        'combine_max_accel': 4.5,
+        'combine_max_accel': float(dynamic_accel),
         'avg_jerk_ratio': 0.85,
         'game_max_speed': float(combine_max_s * 1.05),
         'game_avg_speed': float(combine_max_s * 0.60),
-        'game_max_accel': 4.8
+        'game_max_accel': float(dynamic_accel * 1.1)
     }])
 
-    # Reorder columns automatically to match model's expected feature names
+    # Match exact feature names and order expected by trained model
     if hasattr(model, "feature_name_"):
         input_data = input_data.reindex(columns=model.feature_name_, fill_value=0.0)
 
     if st.button("Evaluate Prospect"):
         prob = model.predict_proba(input_data)[0][1]
-        st.metric(label="High-Impact Starter Probability", value=f"{prob * 100:.1f}%")
+        
+        st.divider()
+        st.metric(label="High-Impact Starter Probability", value=f"{prob * 100:.4f}%")
+        st.caption(f"Raw Output Probability: {prob:.8f}")
+        
         if prob >= 0.65:
-            st.success("Target Classification: Day 1 Immediate Starter / Star")
-        else:
-            st.info("Target Classification: Developmental / System Player")
+            st.success("Target Classification: Day 1 Immediate Starter /
