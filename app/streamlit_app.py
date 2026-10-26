@@ -6,7 +6,7 @@ import streamlit as st
 st.set_page_config(page_title="NFL Draft Prospect Evaluator", layout="wide")
 
 st.title("🏈 NFL Combine-to-Pro Performance Evaluator")
-st.caption("BY Syed Zahid Hussain - 24K0015- Lab 09 - Machine Learning")
+st.caption("BY Syed Zahid Hussain - 24K0015 - Lab 09 - Machine Learning")
 st.write("Predicting regular-season success probability using Combine kinematics & Next Gen Stats.")
 
 MODEL_PATH = "artifacts/nfl_prospect_model.joblib"
