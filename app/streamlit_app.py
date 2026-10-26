@@ -1,7 +1,7 @@
-import streamlit as st
-import pandas as pd
-import joblib
 import os
+import joblib
+import pandas as pd
+import streamlit as st
 
 st.set_page_config(page_title="NFL Draft Prospect Evaluator", layout="wide")
 
@@ -16,13 +16,12 @@ def load_model():
         return joblib.load(MODEL_PATH)
     return None
 
-model_dict = load_model()
+# Directly load the model object (LGBMClassifier)
+model = load_model()
 
-if model_dict is None:
-    st.warning("⚠️ No model artifact found in `artifacts/nfl_prospect_model.joblib`. Please run `python src/train.py` first.")
+if model is None:
+    st.warning("⚠️ No model artifact found in `artifacts/nfl_prospect_model.joblib`. Please run `python -m src.train` first.")
 else:
-    model = model_dict["model"]
-    
     col1, col2, col3 = st.columns(3)
 
     with col1:
