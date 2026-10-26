@@ -9,6 +9,14 @@ st.title("🏈 NFL Combine-to-Pro Performance Evaluator")
 st.caption("BY Syed Zahid Hussain - 24K0015 - Lab 09 - Machine Learning")
 st.write("Predicting regular-season success probability using Combine kinematics & Next Gen Stats.")
 
+st.info(
+    "**How to use this tool:**\n"
+    "- **Inputs:** Adjust the physical measurements (40-yard dash, vertical jump, height, weight), "
+    "bench press reps, Next Gen Stats (NGS) athleticism/production scores, and Combine tracking speeds using the controls below.\n"
+    "- **Output:** Click **Evaluate Prospect** to generate the probability (0–100%) of the prospect becoming a "
+    "**High-Impact NFL Starter** along with a tier classification (Star Starter, Rotational, or Developmental)."
+)
+
 MODEL_PATH = "artifacts/nfl_prospect_model.joblib"
 
 @st.cache_resource
