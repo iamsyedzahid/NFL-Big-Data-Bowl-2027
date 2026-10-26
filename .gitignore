@@ -1,0 +1,17 @@
+# Ignore local secrets
+.env
+*.env
+
+# Track template file explicitly
+!.env.example
+
+# Cache & Build Artifacts
+__pycache__/
+*.pyc
+.venv/
+
+# Ignored Data & Model Binaries
+data/*.csv
+!data/.gitkeep
+artifacts/*.joblib
+!artifacts/.gitkeep
