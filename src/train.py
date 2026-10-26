@@ -3,71 +3,87 @@ import joblib
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
+from pandas.api.types import is_numeric_dtype  # <--- Added import
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import accuracy_score, roc_auc_score, recall_score
 from src.feature_engineering import build_features
 
-ARTIFACT_DIR = "artifacts"
-
-def get_fallback_data():
-    np.random.seed(42)
-    n = 500
-    return pd.DataFrame({
-        'combine_height': np.random.uniform(68, 78, n),
-        'combine_weight': np.random.uniform(180, 320, n),
-        'hand_size': np.random.uniform(8.5, 10.5, n),
-        'arm_length': np.random.uniform(30.0, 35.0, n),
-        'ten_yd_split': np.random.uniform(1.45, 1.75, n),
-        'forty': np.random.uniform(4.30, 5.20, n),
-        'vertical': np.random.uniform(28.0, 42.0, n),
-        'broad_jump': np.random.uniform(100.0, 135.0, n),
-        'three_cone': np.random.uniform(6.60, 7.80, n),
-        'short_shuttle': np.random.uniform(4.00, 4.60, n),
-        'bench_reps': np.random.randint(10, 35, n),
-        'ngs_athleticism_score': np.random.uniform(50, 99, n),
-        'ngs_college_production_score': np.random.uniform(50, 99, n),
-        'combine_max_speed': np.random.uniform(5.0, 12.0, n),
-        'combine_max_accel': np.random.uniform(2.0, 6.0, n),
-        'avg_jerk_ratio': np.random.uniform(0.1, 1.5, n),
-        'target_high_impact': np.random.choice([0, 1], size=n, p=[0.7, 0.3])
-    })
+ARTIFACTS_DIR = "artifacts"
+MODEL_PATH = os.path.join(ARTIFACTS_DIR, "nfl_prospect_model.joblib")
 
 def train_and_export():
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+    print("📂 Ingesting datasets and building features...")
     df_polars = build_features()
 
-    if len(df_polars) > 0:
-        print("📂 Building model from real CSV datasets in data/...")
-        df = df_polars.to_pandas()
-    else:
-        print("⚠️ Data CSVs missing in data/ directory. Training using synthetic baseline data...")
-        df = get_fallback_data()
+    if df_polars.is_empty():
+        print("⚠️ No data loaded. Check files in data/ directory.")
+        return
 
-    features = [
-        'combine_height', 'combine_weight', 'hand_size', 'arm_length',
-        'ten_yd_split', 'forty', 'vertical', 'broad_jump', 'three_cone',
-        'short_shuttle', 'bench_reps', 'ngs_athleticism_score',
-        'ngs_college_production_score', 'combine_max_speed',
-        'combine_max_accel', 'avg_jerk_ratio'
-    ]
+    # Convert to Pandas for scikit-learn / LightGBM
+    df = df_polars.to_pandas()
 
-    for feat in features:
-        if feat not in df.columns:
-            df[feat] = 0.0
-
-    X = df[features].fillna(0)
-    y = df['target_high_impact'].fillna(0)
-
-    clf = lgb.LGBMClassifier(n_estimators=100, learning_rate=0.05, random_state=42)
-    clf.fit(X, y)
-
-    os.makedirs(ARTIFACT_DIR, exist_ok=True)
-    output_path = os.path.join(ARTIFACT_DIR, "nfl_prospect_model.joblib")
+    # Define target and feature set
+    target_col = "target_high_impact"
+    drop_cols = ["nfl_id", "player_name", "first_name", "last_name", "birth_date", 
+                 "college_name", "position", "draft_round", target_col]
     
-    artifact = {
-        "model": clf,
-        "features": features
-    }
+    # Filter features to numeric columns safely using pandas API
+    features = [c for c in df.columns if c not in drop_cols and is_numeric_dtype(df[c])]
     
-    joblib.dump(artifact, output_path)
-    print(f"✅ Baseline model saved successfully to {output_path}")
+    X = df[features]
+    y = df[target_col].fillna(0).astype(int)
+
+    # Calculate class imbalance ratio for scale_pos_weight
+    neg_count = (y == 0).sum()
+    pos_count = (y == 1).sum()
+    scale_weight = neg_count / max(pos_count, 1)
+
+    print(f"📊 Dataset Size: {len(df)} samples | High-Impact: {pos_count} | Baseline: {neg_count}")
+    print(f"⚖️ Applied Class Imbalance Weight (scale_pos_weight): {scale_weight:.2f}\n")
+
+    # 5-Fold Stratified Cross-Validation
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    acc_scores, auc_scores, recall_scores = [], [], []
+
+    for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+
+        model = lgb.LGBMClassifier(
+            n_estimators=100,
+            learning_rate=0.05,
+            scale_pos_weight=scale_weight,
+            random_state=42,
+            verbose=-1
+        )
+        model.fit(X_train, y_train)
+
+        preds = model.predict(X_val)
+        probs = model.predict_proba(X_val)[:, 1]
+
+        acc_scores.append(accuracy_score(y_val, preds))
+        auc_scores.append(roc_auc_score(y_val, probs))
+        recall_scores.append(recall_score(y_val, preds))
+
+    print("--- 5-Fold Cross-Validation Results ---")
+    print(f"Mean Accuracy: {np.mean(acc_scores):.4f}")
+    print(f"Mean ROC-AUC:  {np.mean(auc_scores):.4f}")
+    print(f"Mean Recall:   {np.mean(recall_scores):.4f}\n")
+
+    # Final Model Training on full dataset
+    final_model = lgb.LGBMClassifier(
+        n_estimators=100,
+        learning_rate=0.05,
+        scale_pos_weight=scale_weight,
+        random_state=42,
+        verbose=-1
+    )
+    final_model.fit(X, y)
+
+    # Export model artifact
+    joblib.dump(final_model, MODEL_PATH)
+    print(f"✅ Trained model successfully saved to {MODEL_PATH}")
 
 if __name__ == "__main__":
     train_and_export()
