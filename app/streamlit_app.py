@@ -76,4 +76,8 @@ else:
         st.caption(f"Raw Output Probability: {prob:.8f}")
         
         if prob >= 0.65:
-            st.success("Target Classification: Day 1 Immediate Starter /
+            st.success("Target Classification: Day 1 Immediate Starter / Star")
+        elif prob >= 0.35:
+            st.warning("Target Classification: Rotational Contributor / High-Upside Prospect")
+        else:
+            st.info("Target Classification: Developmental / System Player")
